@@ -88,16 +88,21 @@ export const validateGovernmentIdDocument = async (idBase64: string): Promise<Go
       contents: {
         parts: [
           {
-            text: `You are validating an uploaded identity document for election registration in India.
+            text: `You are validating Indian government identity documents for election registration.
 Return strict JSON with:
-- isGovernmentId: boolean (true only if this is a real government-issued photo ID)
+- isGovernmentId: boolean (true only for real government IDs)
 - documentType: string (Aadhaar, PAN, Passport, Voter ID, Driving License, Unknown)
 - hasPortraitFace: boolean
-- hasDob: boolean (date of birth clearly visible and readable)
-- dob: string (YYYY-MM-DD preferred; DD/MM/YYYY allowed; else empty)
+- hasDob: boolean
+- dob: string (YYYY-MM-DD preferred, DD/MM/YYYY accepted)
 - confidence: number (0-100)
 - reasoning: short reason
-Reject screenshots, web error pages, random photos, logos, or non-ID documents.`,
+- extractedText: key OCR text snippets
+
+Notes:
+- Handle multilingual documents (English, Hindi, Telugu and other Indian scripts).
+- Aadhaar may show "Government of India", "Unique Identification Authority of India", "UIDAI", or regional text variants.
+- Reject screenshots, browser error pages, random photos, logos, and non-ID documents.`,
           },
           { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
         ],
@@ -114,6 +119,7 @@ Reject screenshots, web error pages, random photos, logos, or non-ID documents.`
             dob: { type: Type.STRING },
             confidence: { type: Type.NUMBER },
             reasoning: { type: Type.STRING },
+            extractedText: { type: Type.STRING },
           },
           required: ["isGovernmentId", "documentType", "hasPortraitFace", "hasDob", "dob", "confidence", "reasoning"],
         },
@@ -121,20 +127,45 @@ Reject screenshots, web error pages, random photos, logos, or non-ID documents.`
     });
 
     const parsed = JSON.parse(response.text || "{}") as any;
-    const confidence = Number(parsed.confidence);
+    const docType = normalizeDocType(parsed.documentType);
+    const baseConfidence = Number(parsed.confidence);
     const parsedDob = parseDob(parsed.dob || "");
     const age = parsedDob ? calculateAge(parsedDob) : 0;
+    const extractedCorpus = `${parsed.extractedText || ""} ${parsed.reasoning || ""}`.toLowerCase();
+
+    const hasAadhaarCue = /(aadhaar|aadhar|uidai|unique identification|government of india)/i.test(extractedCorpus);
+    const hasAadhaarNumber = /\b\d{4}\s?\d{4}\s?\d{4}\b/.test(extractedCorpus);
+    const hasPanCue = /(income tax|permanent account number|pan)/i.test(extractedCorpus);
+    const hasPanPattern = /\b[A-Z]{5}\d{4}[A-Z]\b/.test(String(parsed.extractedText || ""));
+
+    const hasDob = Boolean(parsed.hasDob) && Boolean(parsedDob);
+    const confidence = Number.isFinite(baseConfidence) ? baseConfidence : 0;
+
+    const heuristicGovernmentId =
+      Boolean(parsed.hasPortraitFace) &&
+      hasDob &&
+      age >= 18 &&
+      (
+        (docType === "Aadhaar" && (hasAadhaarCue || hasAadhaarNumber)) ||
+        (docType === "PAN" && (hasPanCue || hasPanPattern)) ||
+        ((docType === "Passport" || docType === "Voter ID" || docType === "Driving License") && confidence >= 45)
+      );
+
+    const finalIsGovernmentId = Boolean(parsed.isGovernmentId) || heuristicGovernmentId;
+    const adjustedConfidence = heuristicGovernmentId && confidence < 55 ? 55 : confidence;
 
     return {
-      isGovernmentId: Boolean(parsed.isGovernmentId),
-      documentType: normalizeDocType(parsed.documentType),
+      isGovernmentId: finalIsGovernmentId,
+      documentType: docType,
       hasPortraitFace: Boolean(parsed.hasPortraitFace),
-      hasDob: Boolean(parsed.hasDob) && Boolean(parsedDob),
+      hasDob,
       dob: parsedDob ? parsedDob.toISOString().slice(0, 10) : "",
       age,
       isAdult: age >= 18,
-      confidence: Number.isFinite(confidence) ? confidence : 0,
-      reasoning: parsed.reasoning || "Unable to validate document type.",
+      confidence: adjustedConfidence,
+      reasoning: finalIsGovernmentId
+        ? (parsed.reasoning || "Government ID validated.")
+        : (parsed.reasoning || "Unable to validate document type."),
       serviceAvailable: true,
     };
   } catch (error: any) {

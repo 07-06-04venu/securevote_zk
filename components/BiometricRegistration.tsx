@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Camera, Upload, ShieldCheck, AlertTriangle, ScanLine, Loader2, Fingerprint, Check, Activity } from 'lucide-react';
 import { analyzeBiometricFraud, validateGovernmentIdDocument } from '../services/geminiService';
 import { getBiometricCapabilities, registerWebAuthn, type AuthenticatorMode, type BiometricCapabilities } from '../services/cryptoService';
@@ -24,6 +24,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
   const [isIdVerified, setIsIdVerified] = useState(false);
   const [idDocType, setIdDocType] = useState('');
   const [idConfidence, setIdConfidence] = useState<number | null>(null);
+  const [idReason, setIdReason] = useState('');
   const [idAge, setIdAge] = useState<number>(0);
   const [idDob, setIdDob] = useState('');
   const [isIdAdult, setIsIdAdult] = useState(false);
@@ -191,6 +192,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
         setIsValidatingId(true);
         setIdDocType('');
         setIdConfidence(null);
+        setIdReason('');
         setIdAge(0);
         setIdDob('');
         setIsIdAdult(false);
@@ -200,6 +202,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
           const validation = await validateGovernmentIdDocument(result);
           setIdDocType(validation.documentType || 'Unknown');
           setIdConfidence(validation.confidence);
+          setIdReason(validation.reasoning || '');
           setIdAge(validation.age || 0);
           setIdDob(validation.dob || '');
           setIsIdAdult(Boolean(validation.isAdult));
@@ -211,16 +214,16 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
             return;
           }
 
-          const isSupportedDoc = validation.documentType === 'Aadhaar' || validation.documentType === 'PAN';
+          const isSupportedDoc = ['Aadhaar', 'PAN', 'Passport', 'Voter ID', 'Driving License'].includes(validation.documentType);
           const accepted = validation.isGovernmentId
             && isSupportedDoc
             && validation.hasPortraitFace
             && validation.hasDob
             && validation.isAdult
-            && validation.confidence >= 75;
+            && validation.confidence >= 55;
           if (!accepted) {
             setIsIdVerified(false);
-            setError(`Invalid ID upload: ${validation.reasoning}`);
+            setError(`Invalid ID upload: ${validation.reasoning}. Required: supported ID, visible face + DOB, age >= 18, confidence >= 55%.`);
             return;
           }
 
@@ -379,6 +382,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
                   setIsIdVerified(false);
                   setIdDocType('');
                   setIdConfidence(null);
+        setIdReason('');
                   setIdAge(0);
                   setIdDob('');
                   setIsIdAdult(false);
@@ -407,6 +411,9 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
                   : `ID Status: ${isIdVerified ? 'VERIFIED' : 'REJECTED'}${idDocType ? ` | Type: ${idDocType}` : ''}${idDob ? ` | DOB: ${idDob}` : ''}${idAge > 0 ? ` | Age: ${idAge}` : ''}${idConfidence !== null ? ` | Confidence: ${idConfidence}%` : ''}`)
                 : 'ID Status: NOT UPLOADED')}
           </div>
+          {!!idReason && !isValidatingId && (
+            <p className={`text-xs text-center ${isIdVerified ? 'text-emerald-700' : 'text-rose-700'}`}>{idReason}</p>
+          )}
         </div>
 
         <div className="glass-card p-6 rounded-xl flex flex-col items-center justify-center space-y-4 min-h-[300px]">
@@ -549,3 +556,10 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 };
 
 export default BiometricRegistration;
+
+
+
+
+
+
+
