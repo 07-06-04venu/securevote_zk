@@ -1,0 +1,13 @@
+{
+    "name": "blockelect-blockchain",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Ethereum backend for SecureVote ZK",
+    "main": "index.js",
+    "devDependencies": {
+        "hardhat": "^3.1.10"
+    },
+    "dependencies": {
+        "@nomicfoundation/hardhat-toolbox": "^5.0.0"
+    }
+}

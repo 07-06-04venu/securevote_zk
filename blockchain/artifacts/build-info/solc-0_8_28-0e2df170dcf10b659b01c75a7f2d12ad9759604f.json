@@ -1,0 +1,35 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-0e2df170dcf10b659b01c75a7f2d12ad9759604f",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/Election.sol": "project/contracts/Election.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/Election.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.28;\r\n\r\ncontract Election {\r\n    struct Candidate {\r\n        string id;\r\n        string name;\r\n        string party;\r\n        string description;\r\n        string avatarUrl;\r\n        uint256 voteCount;\r\n    }\r\n\r\n    struct VoteReceipt {\r\n        string voterHash;\r\n        uint256 timestamp;\r\n        string zkProof;\r\n    }\r\n\r\n    address public owner;\r\n    mapping(string => Candidate) public candidates;\r\n    string[] public candidateIds;\r\n    mapping(string => bool) public hasVoted; // voterHash -> bool\r\n\r\n    event VoteCast(string indexed voterHash, string indexed candidateId);\r\n    event CandidateAdded(string indexed id, string name);\r\n\r\n    modifier onlyOwner() {\r\n        require(msg.sender == owner, \"Only owner can call this\");\r\n        _;\r\n    }\r\n\r\n    constructor() {\r\n        owner = msg.sender;\r\n    }\r\n\r\n    function addCandidate(\r\n        string memory _id,\r\n        string memory _name,\r\n        string memory _party,\r\n        string memory _description,\r\n        string memory _avatarUrl\r\n    ) public onlyOwner {\r\n        require(bytes(candidates[_id].id).length == 0, \"Candidate already exists\");\r\n        \r\n        candidates[_id] = Candidate({\r\n            id: _id,\r\n            name: _name,\r\n            party: _party,\r\n            description: _description,\r\n            avatarUrl: _avatarUrl,\r\n            voteCount: 0\r\n        });\r\n        \r\n        candidateIds.push(_id);\r\n        emit CandidateAdded(_id, _name);\r\n    }\r\n\r\n    function removeCandidate(string memory _id) public onlyOwner {\r\n        delete candidates[_id];\r\n        // Note: For simplicity, we don't remove from candidateIds array here\r\n        // as it would require array manipulation, but in a real app we'd manage this.\r\n    }\r\n\r\n    function castVote(\r\n        string memory _voterHash,\r\n        string memory _candidateId,\r\n        string memory _zkProof\r\n    ) public {\r\n        require(!hasVoted[_voterHash], \"Voter has already cast a vote\");\r\n        require(bytes(candidates[_candidateId].id).length != 0, \"Candidate does not exist\");\r\n\r\n        // In a real ZK application, we would verify the proof here.\r\n        // For this demo, we assume the proof passed by the backend is valid.\r\n\r\n        candidates[_candidateId].voteCount += 1;\r\n        hasVoted[_voterHash] = true;\r\n\r\n        emit VoteCast(_voterHash, _candidateId);\r\n    }\r\n\r\n    function getCandidateCount() public view returns (uint256) {\r\n        return candidateIds.length;\r\n    }\r\n\r\n    function getCandidate(string memory _id) public view returns (\r\n        string memory id,\r\n        string memory name,\r\n        string memory party,\r\n        string memory description,\r\n        string memory avatarUrl,\r\n        uint256 voteCount\r\n    ) {\r\n        Candidate memory c = candidates[_id];\r\n        return (c.id, c.name, c.party, c.description, c.avatarUrl, c.voteCount);\r\n    }\r\n\r\n    function getAllCandidateIds() public view returns (string[] memory) {\r\n        return candidateIds;\r\n    }\r\n}\r\n"
+      }
+    }
+  }
+}

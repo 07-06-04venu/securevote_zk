@@ -1,0 +1,7 @@
+{
+  "name": "SecureVote ZK",
+  "description": "A blockchain-based electronic voting system integrating multimodal biometric authentication, AI-driven fraud detection, and Zero-Knowledge Proofs for privacy-preserving verifiable elections.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

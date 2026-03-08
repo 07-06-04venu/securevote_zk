@@ -1,0 +1,16 @@
+[
+  {
+    "address": "0x4444444444444444444444444444444444444444",
+    "biometricHash": "bio",
+    "voterId": "SV-6E4944D6",
+    "humanProofCode": "HUMAN-100-PERSIST1",
+    "verifiedHumanScore": 100
+  },
+  {
+    "address": "0x8ecd05519e55e1ccddf7744ef02a2b20dc697848",
+    "biometricHash": "bio-53qg72ezvi",
+    "voterId": "SV-BBB8BA53",
+    "humanProofCode": "HUMAN-100-RMTZ8O",
+    "verifiedHumanScore": 100
+  }
+]
