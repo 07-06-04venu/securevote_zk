@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import { analyzeBiometricFraud, validateGovernmentIdDocument } from "./lib/aiVerification";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, ".env.local") });
@@ -167,6 +168,48 @@ async function startServer() {
       usingPlaceholder: key === "PLACEHOLDER_API_KEY",
       keyLength: key.length,
     });
+  });
+  app.post("/api/verify-government-id", async (req, res) => {
+    const { idBase64 } = req.body || {};
+    if (!idBase64 || typeof idBase64 !== "string") {
+      return res.status(400).json({ error: "idBase64 is required" });
+    }
+
+    try {
+      const result = await validateGovernmentIdDocument(idBase64);
+      return res.json(result);
+    } catch (e: any) {
+      return res.status(500).json({
+        isGovernmentId: false,
+        documentType: "Unknown",
+        hasPortraitFace: false,
+        hasDob: false,
+        dob: "",
+        age: 0,
+        isAdult: false,
+        confidence: 0,
+        serviceAvailable: false,
+        reasoning: `Government ID verification service unavailable: ${String(e?.message || e)}`,
+      });
+    }
+  });
+
+  app.post("/api/analyze-biometric", async (req, res) => {
+    const { idBase64, selfieBase64 } = req.body || {};
+    if (!idBase64 || !selfieBase64 || typeof idBase64 !== "string" || typeof selfieBase64 !== "string") {
+      return res.status(400).json({ error: "idBase64 and selfieBase64 are required" });
+    }
+
+    try {
+      const result = await analyzeBiometricFraud(idBase64, selfieBase64);
+      return res.json(result);
+    } catch (e: any) {
+      return res.status(500).json({
+        score: 100,
+        isSafe: false,
+        reasoning: `AI verification unavailable. Registration blocked for security. (${String(e?.message || e)})`,
+      });
+    }
   });
 
   const provider = new ethers.JsonRpcProvider(HARDHAT_RPC_URL);
@@ -455,4 +498,8 @@ startServer().catch((e) => {
   console.error("Server startup failed:", e.message);
   process.exit(1);
 });
+
+
+
+
 
