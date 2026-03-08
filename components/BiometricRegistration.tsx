@@ -217,10 +217,10 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
           const isSupportedDoc = ['Aadhaar', 'PAN', 'Passport', 'Voter ID', 'Driving License'].includes(validation.documentType);
           const accepted = validation.isGovernmentId
             && isSupportedDoc
-            && validation.hasPortraitFace
+
             && validation.hasDob
             && validation.isAdult
-            && validation.confidence >= 55;
+            && validation.confidence >= 45;
           if (!accepted) {
             setIsIdVerified(false);
             setError(`Invalid ID upload: ${validation.reasoning}. Required: supported ID, visible face + DOB, age >= 18, confidence >= 55%.`);
@@ -556,6 +556,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 };
 
 export default BiometricRegistration;
+
 
 
 

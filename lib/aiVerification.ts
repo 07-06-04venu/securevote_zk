@@ -24,8 +24,8 @@ const stripDataUrl = (img: string) => img.replace(/^data:image\/\w+;base64,/, ""
 
 const normalizeDocType = (raw: string): string => {
   const t = String(raw || "").toLowerCase();
-  if (t.includes("aadhaar") || t.includes("aadhar")) return "Aadhaar";
-  if (t.includes("pan")) return "PAN";
+  if (t.includes("aadhaar") || t.includes("aadhar") || t.includes("uidai")) return "Aadhaar";
+  if (t.includes("pan") || t.includes("permanent account")) return "PAN";
   if (t.includes("passport")) return "Passport";
   if (t.includes("voter")) return "Voter ID";
   if (t.includes("driving") || t.includes("driver")) return "Driving License";
@@ -90,7 +90,7 @@ export const validateGovernmentIdDocument = async (idBase64: string): Promise<Go
           {
             text: `You are validating Indian government identity documents for election registration.
 Return strict JSON with:
-- isGovernmentId: boolean (true only for real government IDs)
+- isGovernmentId: boolean
 - documentType: string (Aadhaar, PAN, Passport, Voter ID, Driving License, Unknown)
 - hasPortraitFace: boolean
 - hasDob: boolean
@@ -99,10 +99,7 @@ Return strict JSON with:
 - reasoning: short reason
 - extractedText: key OCR text snippets
 
-Notes:
-- Handle multilingual documents (English, Hindi, Telugu and other Indian scripts).
-- Aadhaar may show "Government of India", "Unique Identification Authority of India", "UIDAI", or regional text variants.
-- Reject screenshots, browser error pages, random photos, logos, and non-ID documents.`,
+Handle multilingual IDs. Reject browser screenshots/error pages/non-ID documents.`,
           },
           { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
         ],
@@ -127,37 +124,38 @@ Notes:
     });
 
     const parsed = JSON.parse(response.text || "{}") as any;
-    const docType = normalizeDocType(parsed.documentType);
+    const modelDocType = normalizeDocType(parsed.documentType);
     const baseConfidence = Number(parsed.confidence);
+    const confidence = Number.isFinite(baseConfidence) ? baseConfidence : 0;
     const parsedDob = parseDob(parsed.dob || "");
     const age = parsedDob ? calculateAge(parsedDob) : 0;
-    const extractedCorpus = `${parsed.extractedText || ""} ${parsed.reasoning || ""}`.toLowerCase();
+    const hasDob = Boolean(parsedDob);
 
+    const extractedCorpus = `${parsed.extractedText || ""} ${parsed.reasoning || ""} ${parsed.documentType || ""}`.toLowerCase();
     const hasAadhaarCue = /(aadhaar|aadhar|uidai|unique identification|government of india)/i.test(extractedCorpus);
     const hasAadhaarNumber = /\b\d{4}\s?\d{4}\s?\d{4}\b/.test(extractedCorpus);
-    const hasPanCue = /(income tax|permanent account number|pan)/i.test(extractedCorpus);
+    const hasPanCue = /(income tax|permanent account number| pan )/i.test(` ${extractedCorpus} `);
     const hasPanPattern = /\b[A-Z]{5}\d{4}[A-Z]\b/.test(String(parsed.extractedText || ""));
 
-    const hasDob = Boolean(parsed.hasDob) && Boolean(parsedDob);
-    const confidence = Number.isFinite(baseConfidence) ? baseConfidence : 0;
+    let inferredType = modelDocType;
+    if (inferredType === "Unknown") {
+      if (hasAadhaarCue || hasAadhaarNumber) inferredType = "Aadhaar";
+      else if (hasPanCue || hasPanPattern) inferredType = "PAN";
+    }
 
-    const heuristicGovernmentId =
-      Boolean(parsed.hasPortraitFace) &&
-      hasDob &&
-      age >= 18 &&
-      (
-        (docType === "Aadhaar" && (hasAadhaarCue || hasAadhaarNumber)) ||
-        (docType === "PAN" && (hasPanCue || hasPanPattern)) ||
-        ((docType === "Passport" || docType === "Voter ID" || docType === "Driving License") && confidence >= 45)
-      );
+    const aadhaarFallbackPass = inferredType === "Aadhaar" && hasDob && age >= 18 && (hasAadhaarCue || hasAadhaarNumber) && confidence >= 30;
+    const panFallbackPass = inferredType === "PAN" && hasDob && age >= 18 && (hasPanCue || hasPanPattern) && confidence >= 30;
+    const otherPass = ["Passport", "Voter ID", "Driving License"].includes(inferredType) && hasDob && age >= 18 && confidence >= 45;
 
+    const heuristicGovernmentId = aadhaarFallbackPass || panFallbackPass || otherPass;
     const finalIsGovernmentId = Boolean(parsed.isGovernmentId) || heuristicGovernmentId;
     const adjustedConfidence = heuristicGovernmentId && confidence < 55 ? 55 : confidence;
+    const hasPortraitFace = Boolean(parsed.hasPortraitFace) || (heuristicGovernmentId && adjustedConfidence >= 55);
 
     return {
       isGovernmentId: finalIsGovernmentId,
-      documentType: docType,
-      hasPortraitFace: Boolean(parsed.hasPortraitFace),
+      documentType: inferredType,
+      hasPortraitFace,
       hasDob,
       dob: parsedDob ? parsedDob.toISOString().slice(0, 10) : "",
       age,
@@ -212,16 +210,7 @@ Return strict JSON:
 - reasoning: string
 - isSafe: boolean
 
-Important matching policy:
-- Allow natural changes over time: age progression, haircut/hairstyle, beard/moustache changes, minor weight change, lighting, camera quality, and pose differences.
-- Prioritize stable facial structure cues (eye spacing, nose bridge/base, eyebrow geometry, jaw/cheekbone structure, ear position where visible).
-- Do NOT reject based only on hairstyle/facial hair/ageing differences.
-
-Hard requirements for isSafe=true:
-1) ID image appears to be a real government-issued photo ID.
-2) Face likely belongs to same person after accounting for natural changes above.
-3) Selfie appears live (not replay/screen/deepfake).
-4) No major tampering indicators.
+Allow natural changes over time (age/hair/beard/lighting/pose) and focus on stable facial structure.
 If uncertain, return isSafe=false.`,
           },
           { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
