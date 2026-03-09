@@ -57,6 +57,12 @@ const parseDob = (raw: string): Date | null => {
   return null;
 };
 
+const extractDobFromText = (text: string): Date | null => {
+  const corpus = String(text || "");
+  const match = corpus.match(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\b/);
+  if (!match) return null;
+  return parseDob(match[1]);
+};
 const calculateAge = (dob: Date): number => {
   const today = new Date();
   let age = today.getUTCFullYear() - dob.getUTCFullYear();
@@ -127,16 +133,17 @@ Handle multilingual IDs. Reject browser screenshots/error pages/non-ID documents
     const modelDocType = normalizeDocType(parsed.documentType);
     const baseConfidence = Number(parsed.confidence);
     const confidence = Number.isFinite(baseConfidence) ? baseConfidence : 0;
-    const parsedDob = parseDob(parsed.dob || "");
+    const extractedCorpus = `${parsed.extractedText || ""} ${parsed.reasoning || ""} ${parsed.documentType || ""}`;
+    const parsedDob = parseDob(parsed.dob || "") || extractDobFromText(extractedCorpus);
     const age = parsedDob ? calculateAge(parsedDob) : 0;
     const hasDob = Boolean(parsedDob);
 
-    const extractedCorpus = `${parsed.extractedText || ""} ${parsed.reasoning || ""} ${parsed.documentType || ""}`.toLowerCase();
-    const hasAadhaarCue = /(aadhaar|aadhar|uidai|unique identification|government of india)/i.test(extractedCorpus);
-    const hasAadhaarNumber = /\b\d{4}\s?\d{4}\s?\d{4}\b/.test(extractedCorpus);
-    const hasPanCue = /(income tax|permanent account number| pan )/i.test(` ${extractedCorpus} `);
+    const normalizedCorpus = extractedCorpus.toLowerCase();
+    const hasAadhaarCue = /(aadhaar|aadhar|uidai|unique identification|government of india)/i.test(normalizedCorpus);
+    const hasAadhaarNumber = /\b\d{4}\s?\d{4}\s?\d{4}\b/.test(normalizedCorpus);
+    const hasPanCue = /(income tax|permanent account number| pan )/i.test(` ${normalizedCorpus} `);
     const hasPanPattern = /\b[A-Z]{5}\d{4}[A-Z]\b/.test(String(parsed.extractedText || ""));
-    const hasGovCue = /(government|india|identity|uidai|passport|voter|aadhaar|aadhar|income tax|pan)/i.test(extractedCorpus);
+    const hasGovCue = /(government|india|identity|uidai|passport|voter|aadhaar|aadhar|income tax|pan)/i.test(normalizedCorpus);
 
     let inferredType = modelDocType;
     if (inferredType === "Unknown") {
@@ -252,3 +259,5 @@ If uncertain, return isSafe=false.`,
     };
   }
 };
+
+
