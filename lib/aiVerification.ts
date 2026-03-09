@@ -1,4 +1,3 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import type { FraudAnalysisResult } from "../types";
 
 export type GovernmentIdValidationResult = {
@@ -14,11 +13,9 @@ export type GovernmentIdValidationResult = {
   serviceAvailable: boolean;
 };
 
-const getAiClient = () => {
-  const key = process.env.GEMINI_API_KEY || process.env.API_KEY;
-  if (!key) return null;
-  return new GoogleGenAI({ apiKey: key });
-};
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+const getApiKey = () => process.env.GEMINI_API_KEY || process.env.API_KEY || "";
 
 const stripDataUrl = (img: string) => img.replace(/^data:image\/\w+;base64,/, "");
 
@@ -63,6 +60,7 @@ const extractDobFromText = (text: string): Date | null => {
   if (!match) return null;
   return parseDob(match[1]);
 };
+
 const calculateAge = (dob: Date): number => {
   const today = new Date();
   let age = today.getUTCFullYear() - dob.getUTCFullYear();
@@ -71,65 +69,68 @@ const calculateAge = (dob: Date): number => {
   return Math.max(0, age);
 };
 
-export const validateGovernmentIdDocument = async (idBase64: string): Promise<GovernmentIdValidationResult> => {
-  const ai = getAiClient();
-  if (!ai) {
-    return {
-      isGovernmentId: false,
-      documentType: "Unknown",
-      hasPortraitFace: false,
-      hasDob: false,
-      dob: "",
-      age: 0,
-      isAdult: false,
-      confidence: 0,
-      reasoning: "AI verification unavailable: GEMINI_API_KEY is not configured.",
-      serviceAvailable: false,
-    };
+const extractJsonObject = (text: string): any => {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf("{");
+    const end = trimmed.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(trimmed.slice(start, end + 1));
+    }
+    throw new Error("Model returned non-JSON content");
+  }
+};
+
+const callGemini = async (parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>) => {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Gemini HTTP ${res.status}: ${text || res.statusText}`);
   }
 
+  const payload = JSON.parse(text);
+  const candidateText = payload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("\n") || "";
+  return extractJsonObject(candidateText);
+};
+
+export const validateGovernmentIdDocument = async (idBase64: string): Promise<GovernmentIdValidationResult> => {
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: {
-        parts: [
-          {
-            text: `You are validating Indian government identity documents for election registration.
-Return strict JSON with:
-- isGovernmentId: boolean
-- documentType: string (Aadhaar, PAN, Passport, Voter ID, Driving License, Unknown)
-- hasPortraitFace: boolean
-- hasDob: boolean
-- dob: string (YYYY-MM-DD preferred, DD/MM/YYYY accepted)
-- confidence: number (0-100)
-- reasoning: short reason
-- extractedText: key OCR text snippets
-
-Handle multilingual IDs. Reject browser screenshots/error pages/non-ID documents.`,
-          },
-          { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
-        ],
+    const parsed = await callGemini([
+      {
+        text: `You are validating Indian government identity documents for election registration.
+Return strict JSON only with these fields:
+{
+  "isGovernmentId": boolean,
+  "documentType": "Aadhaar|PAN|Passport|Voter ID|Driving License|Unknown",
+  "hasPortraitFace": boolean,
+  "hasDob": boolean,
+  "dob": "YYYY-MM-DD or DD/MM/YYYY or empty string",
+  "confidence": number,
+  "reasoning": string,
+  "extractedText": string
+}
+Handle multilingual IDs. Reject browser screenshots, error pages, and non-ID documents.`
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            isGovernmentId: { type: Type.BOOLEAN },
-            documentType: { type: Type.STRING },
-            hasPortraitFace: { type: Type.BOOLEAN },
-            hasDob: { type: Type.BOOLEAN },
-            dob: { type: Type.STRING },
-            confidence: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING },
-            extractedText: { type: Type.STRING },
-          },
-          required: ["isGovernmentId", "documentType", "hasPortraitFace", "hasDob", "dob", "confidence", "reasoning"],
-        },
-      },
-    });
+      { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
+    ]);
 
-    const parsed = JSON.parse(response.text || "{}") as any;
     const modelDocType = normalizeDocType(parsed.documentType);
     const baseConfidence = Number(parsed.confidence);
     const confidence = Number.isFinite(baseConfidence) ? baseConfidence : 0;
@@ -197,51 +198,23 @@ Handle multilingual IDs. Reject browser screenshots/error pages/non-ID documents
 };
 
 export const analyzeBiometricFraud = async (idBase64: string, selfieBase64: string): Promise<FraudAnalysisResult> => {
-  const ai = getAiClient();
-  if (!ai) {
-    return {
-      score: 100,
-      reasoning: "AI verification unavailable. GEMINI_API_KEY is not configured.",
-      isSafe: false,
-    };
-  }
-
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: {
-        parts: [
-          {
-            text: `
-You are an election-security biometric verifier.
+    const parsed = await callGemini([
+      {
+        text: `You are an election-security biometric verifier.
 Compare an official government ID image with a live selfie.
-Return strict JSON:
-- score: number (0-100 fraud risk, lower is better)
-- reasoning: string
-- isSafe: boolean
-
-Allow natural changes over time (age/hair/beard/lighting/pose) and focus on stable facial structure.
-If uncertain, return isSafe=false.`,
-          },
-          { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
-          { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(selfieBase64) } },
-        ],
+Return strict JSON only with these fields:
+{
+  "score": number,
+  "reasoning": string,
+  "isSafe": boolean
+}
+Allow natural changes over time including age, hairstyle, facial hair, lighting, and pose. Focus on stable facial structure. If uncertain, return isSafe=false.`
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING },
-            isSafe: { type: Type.BOOLEAN },
-          },
-          required: ["score", "reasoning", "isSafe"],
-        },
-      },
-    });
+      { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(idBase64) } },
+      { inlineData: { mimeType: "image/jpeg", data: stripDataUrl(selfieBase64) } },
+    ]);
 
-    const parsed = JSON.parse(response.text || "{}") as FraudAnalysisResult;
     const numericScore = Number(parsed.score);
     const strictSafe = Boolean(parsed.isSafe) && Number.isFinite(numericScore) && numericScore <= 28;
 
@@ -259,5 +232,3 @@ If uncertain, return isSafe=false.`,
     };
   }
 };
-
-
