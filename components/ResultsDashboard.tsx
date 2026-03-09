@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Block, Candidate, Vote } from '../types';
-import { blockchainInstance } from '../services/cryptoService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Activity, Box, Hash, RefreshCcw } from 'lucide-react';
 
