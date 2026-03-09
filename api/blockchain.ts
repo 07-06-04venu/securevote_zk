@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 
 export const config = {
-  maxDuration: 60,
+  maxDuration: 30,
 };
 
 export default async function handler(req: any, res: any) {
@@ -14,25 +14,22 @@ export default async function handler(req: any, res: any) {
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const blockNumber = await provider.getBlockNumber();
-    const blocks = [];
+    const block = await provider.getBlock(blockNumber);
     
-    for (let i = Math.max(0, blockNumber - 10); i <= blockNumber; i++) {
-      const block = await provider.getBlock(i);
-      if (block) {
-        blocks.push({
-          index: block.number,
-          timestamp: block.timestamp * 1000,
-          hash: block.hash,
-          previousHash: block.parentHash,
-          validator: block.miner,
-          transactions: block.transactions.length,
-        });
-      }
-    }
-    
-    return res.status(200).json(blocks);
+    return res.status(200).json({
+      blockNumber,
+      timestamp: block ? block.timestamp * 1000 : null,
+      hash: block?.hash,
+      transactions: block ? block.transactions.length : 0,
+    });
   } catch (e: any) {
     console.error("Error fetching blockchain:", e.message);
-    return res.status(500).json({ error: e.message });
+    return res.status(200).json({
+      blockNumber: 0,
+      timestamp: Date.now(),
+      hash: "0x",
+      transactions: 0,
+      error: e.message
+    });
   }
 }
