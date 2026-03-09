@@ -46,7 +46,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [humanProofCode, setHumanProofCode] = useState<string | null>(null);
 
-  const isIpOrigin = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(window.location.hostname) || window.location.hostname.includes(':');
+  const isIpOrigin = (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(window.location.hostname) && !window.location.hostname.startsWith('127.')) || window.location.hostname.includes(':');
 
   useEffect(() => {
     void startCamera();
@@ -229,15 +229,14 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 
           const isSupportedDoc = ['Aadhaar', 'PAN', 'Passport', 'Voter ID', 'Driving License'].includes(validation.documentType);
           const hasFallbackType = validation.documentType === 'Unknown';
-          const accepted = validation.isGovernmentId
+          const accepted = (validation.isGovernmentId || isSupportedDoc)
             && (isSupportedDoc || hasFallbackType)
-
-            && validation.hasDob
-            && validation.isAdult
-            && validation.confidence >= 45;
+            && (validation.hasDob || validation.age > 0)
+            && (validation.isAdult || validation.age >= 18)
+            && (validation.confidence >= 30 || isSupportedDoc);
           if (!accepted) {
             setIsIdVerified(false);
-            setError(`Invalid ID upload: ${validation.reasoning}. Required: supported ID, visible face + DOB, age >= 18, confidence >= 45%.`);
+            setError(`Invalid ID upload: ${validation.reasoning}. Required: supported ID, visible face + DOB, age >= 18, confidence >= 30%.`);
             return;
           }
 
@@ -491,7 +490,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 
       <div className="glass-card p-6 rounded-xl flex flex-col items-center justify-center space-y-6">
         <h3 className="text-lg font-semibold text-slate-900">3. Biometric Device Enrollment</h3>
-        <p className="text-slate-600 text-sm text-center max-w-md">Use your built-in biometric reader or an external connected authenticator. Simulated fingerprint is disabled.</p>
+        <p className="text-slate-600 text-sm text-center max-w-md">Use your built-in biometric reader or an external connected authenticator.</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl">
           <button

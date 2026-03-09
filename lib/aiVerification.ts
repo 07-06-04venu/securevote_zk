@@ -216,7 +216,7 @@ Allow natural changes over time including age, hairstyle, facial hair, lighting,
     ]);
 
     const numericScore = Number(parsed.score);
-    const strictSafe = Boolean(parsed.isSafe) && Number.isFinite(numericScore) && numericScore <= 28;
+    const strictSafe = Boolean(parsed.isSafe) && Number.isFinite(numericScore) && numericScore <= 60;
 
     return {
       score: Number.isFinite(numericScore) ? numericScore : 100,

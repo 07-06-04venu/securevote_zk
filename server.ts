@@ -71,7 +71,17 @@ const voterSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const candidateSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true, index: true },
+  name: { type: String, required: true },
+  party: { type: String, required: true },
+  description: { type: String, default: "" },
+  avatarUrl: { type: String, default: "" },
+  voteCount: { type: Number, default: 0 },
+}, { timestamps: true });
+
 const VoterModel: any = mongoose.models.Voter || mongoose.model("Voter", voterSchema);
+const CandidateModel: any = mongoose.models.Candidate || mongoose.model("Candidate", candidateSchema);
 
 type VoterRecord = {
   address: string;
@@ -109,6 +119,18 @@ async function startServer() {
       });
       mongoReady = true;
       console.log(`MongoDB connected using ${target.label} URI`);
+      
+      const existingCandidates = await CandidateModel.countDocuments();
+      if (existingCandidates === 0) {
+        const defaultCandidates = [
+          { id: "c1", name: "Avinash", party: "Bharatiya Janata Party (BJP)", description: "Focusing on national development and economic growth.", avatarUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSz8ZAHLINeWvDiaY9TysPtYcTt50gPM6-3mQ&s", voteCount: 0 },
+          { id: "c2", name: "Venu", party: "Indian National Congress (INC)", description: "Advocating for social justice and inclusive progress.", avatarUrl: "https://upload.wikimedia.org/wikipedia/commons/3/3e/Indian_National_Congress_hand_symbol.png", voteCount: 0 },
+          { id: "c3", name: "Gopal", party: "Aam Aadmi Party (AAP)", description: "Committed to transparent governance and public welfare.", avatarUrl: "https://m.media-amazon.com/images/I/51YCqhDhqIS.jpg", voteCount: 0 },
+          { id: "c4", name: "Krishna", party: "Bahujan Samaj Party (BSP)", description: "Empowering marginalized communities and social equality.", avatarUrl: "https://upload.wikimedia.org/wikipedia/commons/8/8e/Bahujan_Samaj_Party_symbol_Elephant.svg", voteCount: 0 },
+        ];
+        await CandidateModel.insertMany(defaultCandidates);
+        console.log("Default candidates seeded to MongoDB");
+      }
       break;
     } catch (e: any) {
       mongoErrorMessage = String(e?.message || e);
@@ -320,14 +342,19 @@ async function startServer() {
 
   app.get("/api/candidates", async (_req, res) => {
     try {
-      const ids: string[] = await electionContract.getAllCandidateIds();
-      const candidates = await Promise.all(
-        ids.map(async (id) => {
-          const [cId, name, party, description, avatarUrl, voteCount] = await electionContract.getCandidate(id);
-          return { id: cId, name, party, description, avatarUrl, voteCount: Number(voteCount) };
-        })
-      );
-      res.json(candidates.filter((c) => c.id !== ""));
+      if (mongoReady) {
+        const candidates = await CandidateModel.find({}).sort({ id: 1 }).lean();
+        res.json(candidates.map((c: any) => ({ ...c, voteCount: c.voteCount || 0 })));
+      } else {
+        const ids: string[] = await electionContract.getAllCandidateIds();
+        const candidates = await Promise.all(
+          ids.map(async (id) => {
+            const [cId, name, party, description, avatarUrl, voteCount] = await electionContract.getCandidate(id);
+            return { id: cId, name, party, description, avatarUrl, voteCount: Number(voteCount) };
+          })
+        );
+        res.json(candidates.filter((c) => c.id !== ""));
+      }
     } catch (e: any) {
       console.error("Error fetching candidates:", e.message);
       res.json([]);
@@ -336,14 +363,19 @@ async function startServer() {
 
   app.get("/api/tally", async (_req, res) => {
     try {
-      const ids: string[] = await electionContract.getAllCandidateIds();
-      const results = await Promise.all(
-        ids.map(async (id) => {
-          const [cId, name, party, description, avatarUrl, voteCount] = await electionContract.getCandidate(id);
-          return { id: cId, name, party, description, avatarUrl, voteCount: Number(voteCount) };
-        })
-      );
-      res.json(results.filter((c) => c.id !== ""));
+      if (mongoReady) {
+        const candidates = await CandidateModel.find({}).sort({ id: 1 }).lean();
+        res.json(candidates.map((c: any) => ({ ...c, voteCount: c.voteCount || 0 })));
+      } else {
+        const ids: string[] = await electionContract.getAllCandidateIds();
+        const results = await Promise.all(
+          ids.map(async (id) => {
+            const [cId, name, party, description, avatarUrl, voteCount] = await electionContract.getCandidate(id);
+            return { id: cId, name, party, description, avatarUrl, voteCount: Number(voteCount) };
+          })
+        );
+        res.json(results.filter((c) => c.id !== ""));
+      }
     } catch (e: any) {
       console.error("Error fetching tally:", e.message);
       res.json([]);
@@ -398,6 +430,10 @@ async function startServer() {
         await VoterModel.updateOne(
           { voterId },
           { $set: { hasVoted: true, lastVoteTxHash: receipt.hash } }
+        );
+        await CandidateModel.updateOne(
+          { id: candidateId },
+          { $inc: { voteCount: 1 } }
         );
       } else {
         const localVoter = registeredVoters.get(voterId);
