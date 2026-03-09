@@ -1,9 +1,10 @@
 import { analyzeBiometricFraud } from "../lib/aiVerification";
 
 export const config = {
+  maxDuration: 60,
   api: {
     bodyParser: {
-      sizeLimit: "8mb",
+      sizeLimit: "20mb",
     },
   },
 };
