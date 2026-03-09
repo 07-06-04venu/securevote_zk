@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Search, ShieldCheck, Hash, FileCheck, AlertCircle, Loader2, Clock, FileText, Activity, Box } from 'lucide-react';
-import { getBlockchain } from '../services/cryptoService';
 import { Block } from '../types';
 
 const AuditTool: React.FC = () => {
@@ -16,10 +15,11 @@ const AuditTool: React.FC = () => {
     setResult(null);
 
     try {
-      const chain = await getBlockchain();
-      const foundBlock = chain.find(b => 
+      const res = await fetch('/api/blockchain');
+      const chain = await res.json();
+      const foundBlock = chain.find((b: Block) => 
         b.hash === searchHash || 
-        b.transactions.some(tx => tx.voterHash === searchHash)
+        (b.transactions as any[])?.some((tx: any) => tx.voterHash === searchHash)
       );
 
       if (foundBlock) {
