@@ -9,7 +9,7 @@ const candidateSchema = new mongoose.Schema({
   voteCount: { type: Number, default: 0 },
 }, { timestamps: true });
 
-const CandidateModel = mongoose.models.CandidateTally || mongoose.model("CandidateTally", candidateSchema);
+const CandidateModel = mongoose.models.Candidate || mongoose.model("Candidate", candidateSchema);
 
 export const config = {
   maxDuration: 60,
