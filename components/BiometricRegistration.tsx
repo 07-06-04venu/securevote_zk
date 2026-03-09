@@ -215,15 +215,16 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
           }
 
           const isSupportedDoc = ['Aadhaar', 'PAN', 'Passport', 'Voter ID', 'Driving License'].includes(validation.documentType);
+          const hasFallbackType = validation.documentType === 'Unknown';
           const accepted = validation.isGovernmentId
-            && isSupportedDoc
+            && (isSupportedDoc || hasFallbackType)
 
             && validation.hasDob
             && validation.isAdult
             && validation.confidence >= 45;
           if (!accepted) {
             setIsIdVerified(false);
-            setError(`Invalid ID upload: ${validation.reasoning}. Required: supported ID, visible face + DOB, age >= 18, confidence >= 55%.`);
+            setError(`Invalid ID upload: ${validation.reasoning}. Required: supported ID, visible face + DOB, age >= 18, confidence >= 45%.`);
             return;
           }
 
@@ -556,6 +557,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 };
 
 export default BiometricRegistration;
+
 
 
 

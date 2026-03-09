@@ -136,6 +136,7 @@ Handle multilingual IDs. Reject browser screenshots/error pages/non-ID documents
     const hasAadhaarNumber = /\b\d{4}\s?\d{4}\s?\d{4}\b/.test(extractedCorpus);
     const hasPanCue = /(income tax|permanent account number| pan )/i.test(` ${extractedCorpus} `);
     const hasPanPattern = /\b[A-Z]{5}\d{4}[A-Z]\b/.test(String(parsed.extractedText || ""));
+    const hasGovCue = /(government|india|identity|uidai|passport|voter|aadhaar|aadhar|income tax|pan)/i.test(extractedCorpus);
 
     let inferredType = modelDocType;
     if (inferredType === "Unknown") {
@@ -146,15 +147,17 @@ Handle multilingual IDs. Reject browser screenshots/error pages/non-ID documents
     const aadhaarFallbackPass = inferredType === "Aadhaar" && hasDob && age >= 18 && (hasAadhaarCue || hasAadhaarNumber) && confidence >= 30;
     const panFallbackPass = inferredType === "PAN" && hasDob && age >= 18 && (hasPanCue || hasPanPattern) && confidence >= 30;
     const otherPass = ["Passport", "Voter ID", "Driving License"].includes(inferredType) && hasDob && age >= 18 && confidence >= 45;
+    const unknownButLikelyGov = inferredType === "Unknown" && hasDob && age >= 18 && hasGovCue && confidence >= 55;
 
-    const heuristicGovernmentId = aadhaarFallbackPass || panFallbackPass || otherPass;
+    const heuristicGovernmentId = aadhaarFallbackPass || panFallbackPass || otherPass || unknownButLikelyGov;
     const finalIsGovernmentId = Boolean(parsed.isGovernmentId) || heuristicGovernmentId;
     const adjustedConfidence = heuristicGovernmentId && confidence < 55 ? 55 : confidence;
     const hasPortraitFace = Boolean(parsed.hasPortraitFace) || (heuristicGovernmentId && adjustedConfidence >= 55);
+    const finalDocType = unknownButLikelyGov && hasAadhaarNumber ? "Aadhaar" : inferredType;
 
     return {
       isGovernmentId: finalIsGovernmentId,
-      documentType: inferredType,
+      documentType: finalDocType,
       hasPortraitFace,
       hasDob,
       dob: parsedDob ? parsedDob.toISOString().slice(0, 10) : "",
