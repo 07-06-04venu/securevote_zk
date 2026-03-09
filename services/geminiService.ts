@@ -20,9 +20,16 @@ const postJson = async <T>(url: string, body: Record<string, unknown>): Promise<
     body: JSON.stringify(body),
   });
 
-  const data = await res.json().catch(() => ({}));
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { error: text || `AI verification request failed (${res.status})` };
+  }
+
   if (!res.ok) {
-    const message = (data as any)?.error || (data as any)?.reasoning || 'AI verification request failed';
+    const message = data?.error || data?.reasoning || `AI verification request failed (${res.status})`;
     throw new Error(message);
   }
 

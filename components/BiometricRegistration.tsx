@@ -143,6 +143,17 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
     }
   };
 
+  const optimizeImageDataUrl = (img: HTMLImageElement, maxWidth: number, quality: number) => {
+    const scale = Math.min(1, maxWidth / img.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.width * scale));
+    canvas.height = Math.max(1, Math.round(img.height * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Image processing unavailable.');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', quality);
+  };
+
   const capturePhoto = useCallback(() => {
     if (!livenessPassed) {
       setError('Complete liveness challenge first.');
@@ -155,7 +166,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
         canvasRef.current.width = 640;
         canvasRef.current.height = 480;
         context.drawImage(videoRef.current, 0, 0, 640, 480);
-        const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.9);
+        const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.82);
         setCapturedImage(dataUrl);
       }
     }
@@ -186,8 +197,10 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
           return;
         }
 
+                const optimizedImage = optimizeImageDataUrl(img, 1280, 0.8);
+
         setError(null);
-        setIdImage(result);
+        setIdImage(optimizedImage);
         setIsIdVerified(false);
         setIsValidatingId(true);
         setIdDocType('');
@@ -199,7 +212,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
         setIsIdServiceAvailable(true);
 
         try {
-          const validation = await validateGovernmentIdDocument(result);
+          const validation = await validateGovernmentIdDocument(optimizedImage);
           setIdDocType(validation.documentType || 'Unknown');
           setIdConfidence(validation.confidence);
           setIdReason(validation.reasoning || '');
@@ -557,6 +570,10 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 };
 
 export default BiometricRegistration;
+
+
+
+
 
 
 
