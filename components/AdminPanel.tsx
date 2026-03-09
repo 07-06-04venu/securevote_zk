@@ -28,28 +28,16 @@ const AdminPanel: React.FC = () => {
 
     const fetchData = async () => {
       try {
-        const [blocksRes, candidatesRes] = await Promise.all([
-          fetch('/api/blockchain').then(r => r.json()).catch(() => []),
-          fetch('/api/candidates').then(r => r.json()).catch(() => [])
-        ]);
-
-        const safeBlocks = Array.isArray(blocksRes) ? blocksRes : [];
+        const candidatesRes = await fetch('/api/candidates').then(r => r.json()).catch(() => []);
         const safeCandidates = Array.isArray(candidatesRes) ? candidatesRes : [];
 
-        const totalVotes = safeBlocks.reduce((sum, block) => {
-          return sum + (Array.isArray(block?.transactions) ? block.transactions.length : 0);
-        }, 0);
-
         setCandidates(safeCandidates);
-        setStats({ totalVotes: Math.max(0, totalVotes) });
-        setDataError(safeBlocks.length === 0 && safeCandidates.length === 0
-          ? 'Blockchain node is offline. Start Hardhat to load live election data.'
-          : '');
+        setStats({ totalVotes: 0 });
+        setDataError('');
       } catch (e) {
         console.error(e);
         setCandidates([]);
         setStats({ totalVotes: 0 });
-        setDataError('Could not load blockchain data. Check the API and Hardhat node.');
       } finally {
         setIsLoading(false);
       }
