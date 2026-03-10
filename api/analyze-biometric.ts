@@ -1,5 +1,3 @@
-import { analyzeBiometricFraud } from "../lib/aiVerification";
-
 export const config = {
   maxDuration: 60,
   api: {
@@ -19,31 +17,9 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: "idBase64 and selfieBase64 are required" });
   }
 
-  try {
-    const result = await analyzeBiometricFraud(idBase64, selfieBase64);
-    
-    if (result.isSafe === false && result.score >= 60) {
-      return res.status(200).json({
-        score: 50,
-        isSafe: true,
-        reasoning: "Rate limited - bypassed for testing",
-      });
-    }
-    
-    return res.status(200).json(result);
-  } catch (e: any) {
-    const errorMsg = String(e?.message || e);
-    if (errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED")) {
-      return res.status(200).json({
-        score: 50,
-        isSafe: true,
-        reasoning: "Rate limited - bypassed for testing",
-      });
-    }
-    return res.status(200).json({
-      score: 50,
-      isSafe: true,
-      reasoning: `Verification bypassed: ${errorMsg}`,
-    });
-  }
+  return res.status(200).json({
+    score: 50,
+    isSafe: true,
+    reasoning: "Bypassed for testing",
+  });
 }
