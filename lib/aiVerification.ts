@@ -1,4 +1,8 @@
 import type { FraudAnalysisResult } from "../types";
+import { governmentIdCache, biometricCache, CACHE_TTLS } from "./cache";
+import { idVerificationRateLimiter, biometricRateLimiter } from "./rateLimiter";
+import { callGeminiWithRetry } from "./retryHandler";
+import crypto from "crypto";
 
 export type GovernmentIdValidationResult = {
   isGovernmentId: boolean;
@@ -12,10 +16,6 @@ export type GovernmentIdValidationResult = {
   reasoning: string;
   serviceAvailable: boolean;
 };
-
-const GEMINI_MODEL = "gemini-2.5-flash";
-
-const getApiKey = () => process.env.GEMINI_API_KEY || process.env.API_KEY || "";
 
 const stripDataUrl = (img: string) => img.replace(/^data:image\/\w+;base64,/, "");
 
@@ -69,50 +69,33 @@ const calculateAge = (dob: Date): number => {
   return Math.max(0, age);
 };
 
-const extractJsonObject = (text: string): any => {
-  const trimmed = String(text || "").trim();
-  if (!trimmed) return {};
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      return JSON.parse(trimmed.slice(start, end + 1));
-    }
-    throw new Error("Model returned non-JSON content");
-  }
-};
-
-const callGemini = async (parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>) => {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
-
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      },
-    }),
-  });
-
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Gemini HTTP ${res.status}: ${text || res.statusText}`);
-  }
-
-  const payload = JSON.parse(text);
-  const candidateText = payload?.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("\n") || "";
-  return extractJsonObject(candidateText);
-};
-
 export const validateGovernmentIdDocument = async (idBase64: string): Promise<GovernmentIdValidationResult> => {
+  // Check cache first
+  const cacheKey = ["government-id", idBase64.substring(0, 100)];
+  const cachedResult = governmentIdCache.get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
+  // Check rate limit
+  const identifier = `government-id:${crypto.createHash("sha256").update(idBase64).digest("hex").substring(0, 16)}`;
+  if (!idVerificationRateLimiter.canProceed(identifier)) {
+    return {
+      isGovernmentId: false,
+      documentType: "Unknown",
+      hasPortraitFace: false,
+      hasDob: false,
+      dob: "",
+      age: 0,
+      isAdult: false,
+      confidence: 0,
+      reasoning: "Rate limit exceeded. Please try again later.",
+      serviceAvailable: true,
+    };
+  }
+
   try {
-    const parsed = await callGemini([
+    const parsed = await callGeminiWithRetry([
       {
         text: `You are validating Indian government identity documents for election registration.
 Return strict JSON only with these fields:
@@ -163,7 +146,7 @@ Handle multilingual IDs. Reject browser screenshots, error pages, and non-ID doc
     const hasPortraitFace = Boolean(parsed.hasPortraitFace) || (heuristicGovernmentId && adjustedConfidence >= 55);
     const finalDocType = unknownButLikelyGov && hasAadhaarNumber ? "Aadhaar" : inferredType;
 
-    return {
+    const result: GovernmentIdValidationResult = {
       isGovernmentId: finalIsGovernmentId,
       documentType: finalDocType,
       hasPortraitFace,
@@ -177,9 +160,24 @@ Handle multilingual IDs. Reject browser screenshots, error pages, and non-ID doc
         : (parsed.reasoning || "Unable to validate document type."),
       serviceAvailable: true,
     };
+
+    // Cache the result
+    governmentIdCache.set(cacheKey, result, CACHE_TTLS.GOVERNMENT_ID);
+    idVerificationRateLimiter.recordRequest(identifier);
+
+    return result;
   } catch (error: any) {
     const message = String(error?.message || error || "unknown error");
-    const likelyKeyIssue = /api key|permission|unauth|401|403|invalid/i.test(message);
+    const likelyKeyIssue = /api key|permission|unauth|401|403|invalid|not configured/i.test(message);
+
+    // Record failed request for rate limiting
+    idVerificationRateLimiter.recordRequest(identifier);
+
+    // Null-safe rate-limit block check
+    if (message.includes("429")) {
+      idVerificationRateLimiter.block(identifier);
+    }
+
     return {
       isGovernmentId: false,
       documentType: "Unknown",
@@ -190,16 +188,33 @@ Handle multilingual IDs. Reject browser screenshots, error pages, and non-ID doc
       isAdult: false,
       confidence: 0,
       reasoning: likelyKeyIssue
-        ? "AI verification unavailable: invalid or unauthorized GEMINI_API_KEY."
+        ? "AI verification unavailable: invalid or unauthorized GEMINI_API_KEY. Please set a valid key in your .env file."
         : `Government ID verification service unavailable: ${message}`,
-      serviceAvailable: false,
+      serviceAvailable: !likelyKeyIssue,
     };
   }
 };
 
 export const analyzeBiometricFraud = async (idBase64: string, selfieBase64: string): Promise<FraudAnalysisResult> => {
+  // Check cache first
+  const cacheKey = ["biometric", idBase64.substring(0, 100), selfieBase64.substring(0, 100)];
+  const cachedResult = biometricCache.get(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
+  // Check rate limit
+  const identifier = `biometric:${crypto.createHash("sha256").update(idBase64 + selfieBase64).digest("hex").substring(0, 16)}`;
+  if (!biometricRateLimiter.canProceed(identifier)) {
+    return {
+      score: 100,
+      reasoning: "Rate limit exceeded. Please try again later.",
+      isSafe: false,
+    };
+  }
+
   try {
-    const parsed = await callGemini([
+    const parsed = await callGeminiWithRetry([
       {
         text: `You are an election-security biometric verifier.
 Compare an official government ID image with a live selfie.
@@ -218,13 +233,28 @@ Allow natural changes over time including age, hairstyle, facial hair, lighting,
     const numericScore = Number(parsed.score);
     const strictSafe = Boolean(parsed.isSafe) && Number.isFinite(numericScore) && numericScore <= 60;
 
-    return {
+    const result: FraudAnalysisResult = {
       score: Number.isFinite(numericScore) ? numericScore : 100,
       reasoning: parsed.reasoning || "AI verification returned invalid response.",
       isSafe: strictSafe,
     };
+
+    // Cache the result
+    biometricCache.set(cacheKey, result, CACHE_TTLS.BIOMETRIC);
+    biometricRateLimiter.recordRequest(identifier);
+
+    return result;
   } catch (error: any) {
     const message = String(error?.message || error || "unknown error");
+
+    // Record failed request for rate limiting
+    biometricRateLimiter.recordRequest(identifier);
+
+    // Null-safe rate-limit block check
+    if (message.includes("429")) {
+      biometricRateLimiter.block(identifier);
+    }
+
     return {
       score: 100,
       reasoning: `AI verification unavailable. Registration blocked for security. (${message})`,
