@@ -11,6 +11,8 @@
     "biometricHash": "bio-53qg72ezvi",
     "voterId": "SV-BBB8BA53",
     "humanProofCode": "HUMAN-100-RMTZ8O",
-    "verifiedHumanScore": 100
+    "verifiedHumanScore": 100,
+    "hasVoted": true,
+    "lastVoteTxHash": "0xbf57d7e4cc3828"
   }
 ]
