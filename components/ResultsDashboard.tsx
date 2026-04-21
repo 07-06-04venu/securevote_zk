@@ -12,21 +12,21 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [tally, setTally] = useState<{ name: string, votes: number }[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [totalVotes, setTotalVotes] = useState(0);
 
   const refreshData = async () => {
     try {
-      // Fetch live tally from the smart contract
       const tallyRes = await fetch('/api/tally');
       if (tallyRes.ok) {
         const tallyData = await tallyRes.json();
         setTally(tallyData.map((c: any) => ({ name: c.name, votes: c.voteCount })));
+        setTotalVotes(tallyData.reduce((acc: number, c: any) => acc + (c.voteCount || 0), 0));
       }
 
-      // Fetch blockchain blocks for the explorer
       const blockRes = await fetch('/api/blockchain');
       if (blockRes.ok) {
         const chain = await blockRes.json();
-        setBlocks([...chain].reverse()); // Newest first
+        setBlocks([...chain].reverse());
       }
 
       setLastUpdate(new Date());
@@ -37,9 +37,9 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 5000); // Live poll
+    const interval = setInterval(refreshData, 3000);
     return () => clearInterval(interval);
-  }, [candidates]);
+  }, []);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -49,7 +49,7 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
         <div className="glass-card p-6 rounded-xl border-l-4 border-emerald-500">
           <h3 className="text-slate-500 text-sm font-medium uppercase">Total Votes Cast</h3>
           <p className="text-3xl font-bold text-slate-900 mt-1">
-            {tally.reduce((acc, curr) => acc + curr.votes, 0).toLocaleString()}
+            {totalVotes.toLocaleString()}
           </p>
         </div>
         <div className="glass-card p-6 rounded-xl border-l-4 border-emerald-500">
@@ -64,7 +64,7 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
             <p className="text-xl font-bold text-slate-900">
               {lastUpdate.toLocaleTimeString()}
             </p>
-            <RefreshCcw className="w-5 h-5 text-indigo-500 animate-spin-slow" />
+            <RefreshCcw className="w-5 h-5 text-indigo-500 animate-spin" />
           </div>
         </div>
       </div>
