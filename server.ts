@@ -318,6 +318,8 @@ async function startServer() {
     username: "admin",
     passwordHash: sha256("securepass"),
   };
+  // Optional: allow admin access via a stable API key (useful for monitoring dashboards)
+  const ADMIN_API_KEY = (process.env as any).ADMIN_API_KEY || "";
   const activeAdminSessions = new Set<string>();
   const registeredVoters = new Map<string, VoterRecord>();
   const voterAddressMap = new Map<string, string>();
@@ -599,8 +601,12 @@ async function startServer() {
 
   const requireAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const token = req.headers.authorization?.split(" ")[1];
-    if (token && activeAdminSessions.has(token)) next();
-    else res.status(403).json({ error: "Unauthorized: Admin access required" });
+    const apiKey = (req.headers["x-admin-api-key"] || "").toString();
+    if ((token && activeAdminSessions.has(token)) || (ADMIN_API_KEY && apiKey === ADMIN_API_KEY)) {
+      next();
+    } else {
+      res.status(403).json({ error: "Unauthorized: Admin access required" });
+    }
   };
 
   app.post("/api/candidates", requireAdmin, async (_req, res) => {
