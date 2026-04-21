@@ -29,6 +29,7 @@ const ELECTION_ABI = [
 ];
 
 let cachedChainConfig: ChainConfig | null = null;
+let cachedDemoMode: boolean = false;
 
 const getEthereum = () => {
   const eth = (window as any).ethereum;
@@ -39,10 +40,11 @@ const getEthereum = () => {
 };
 
 const assertExpectedChain = async (provider: ethers.BrowserProvider, expectedChainId: number) => {
+  if (cachedDemoMode) return;
   const network = await provider.getNetwork();
   const activeChainId = Number(network.chainId);
   if (activeChainId !== expectedChainId) {
-    throw new Error(`Wrong network selected. Use Hardhat Local (chainId ${expectedChainId}).`);
+    throw new Error(`Wrong network selected. Use Sepolia Testnet (chainId ${expectedChainId}).`);
   }
 };
 
@@ -85,16 +87,19 @@ export const getChainConfig = async (): Promise<ChainConfig> => {
   }
 
   const data = await res.json();
+  cachedDemoMode = data.demoMode === true;
   cachedChainConfig = {
     contractAddress: data.contractAddress,
     chainId: data.chainId,
-    chainName: data.chainName || 'Hardhat Local',
+    chainName: data.chainName || 'Sepolia Testnet',
     rpcUrl: data.rpcUrl,
   };
   return cachedChainConfig;
 };
 
 export const ensureWalletOnElectionNetwork = async (): Promise<void> => {
+  if (cachedDemoMode) return;
+  
   const ethereum = getEthereum();
   const chain = await getChainConfig();
   const chainIdHex = `0x${chain.chainId.toString(16)}`;
