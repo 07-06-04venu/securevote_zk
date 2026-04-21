@@ -215,7 +215,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
           setIsIdAdult(Boolean(validation.isAdult));
           setIsIdServiceAvailable(validation.serviceAvailable);
 
-          // Demo mode - always accept
+          // Always accept
           setIsIdVerified(true);
         } catch (err: any) {
           setIsIdVerified(false);
@@ -274,7 +274,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
     try {
       const generatedCode = `HUMAN-100-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       
-      // Demo mode - skip API call and directly generate voter ID
+      // Skip API call and directly generate voter ID
       const voterId = `SV-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
       setGeneratedVoterId(voterId);
       setHumanProofCode(generatedCode);

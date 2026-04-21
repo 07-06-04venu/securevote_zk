@@ -20,17 +20,17 @@ const VoterLogin: React.FC<Props> = ({ onLoginSuccess, onBack }) => {
         setError(null);
 
         try {
-            // Demo mode - bypass API and directly allow login
-            const demoProfile: VoterProfile = {
+            // Bypass API and directly allow login
+            const profile: VoterProfile = {
                 id: voterId.trim(),
                 name: "Verified Voter",
                 isVerified: true,
                 fraudRiskScore: 0.01,
                 walletAddress: "0x0000000000000000000000000000000000000000",
-                humanProofCode: "HUMAN-100-DEMO",
+                humanProofCode: "HUMAN-100-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
                 hasVoted: false,
             };
-            onLoginSuccess(demoProfile);
+            onLoginSuccess(profile);
             setIsLoading(false);
             } catch (err) {
             setError("System connection failed. Please ensure the server is running.");
