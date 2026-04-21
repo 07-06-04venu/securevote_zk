@@ -191,13 +191,7 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
       const result = reader.result as string;
       const img = new Image();
       img.onload = async () => {
-        if (img.width < 300 || img.height < 180) {
-          setError('ID image resolution is too low. Upload a clearer ID photo.');
-          setIsIdVerified(false);
-          return;
-        }
-
-                const optimizedImage = optimizeImageDataUrl(img, 1280, 0.8);
+        const optimizedImage = optimizeImageDataUrl(img, 1280, 0.8);
 
         setError(null);
         setIdImage(optimizedImage);
