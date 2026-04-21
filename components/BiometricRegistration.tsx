@@ -273,21 +273,11 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
 
     try {
       const generatedCode = `HUMAN-100-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      const regRes = await fetch('/api/register-voter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          address: walletAddress,
-          biometricHash: `bio-${Math.random().toString(36).slice(2, 12)}`,
-          humanProofCode: generatedCode,
-        }),
-      });
-
-      const regData = await regRes.json();
-      if (!regRes.ok) throw new Error(regData.error || 'Registration failed');
-
-      setGeneratedVoterId(regData.voterId);
-      setHumanProofCode(regData.humanProofCode || generatedCode);
+      
+      // Demo mode - skip API call and directly generate voter ID
+      const voterId = `SV-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      setGeneratedVoterId(voterId);
+      setHumanProofCode(generatedCode);
     } catch (e: any) {
       setError(`System error: ${e.message}. Please ensure the server and wallet are available.`);
     } finally {
