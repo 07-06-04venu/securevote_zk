@@ -3,6 +3,11 @@ export const config = {
 };
 
 export default async function handler(req: any, res: any) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
+
   const isDemo = process.env.DEMO_MODE === "true" || !process.env.SEPOLIA_RPC_URL;
   
   if (isDemo) {
