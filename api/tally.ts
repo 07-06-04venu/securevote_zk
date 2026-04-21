@@ -10,6 +10,11 @@ const defaultCandidates = [
 ];
 
 export default async function handler(req: any, res: any) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(200).end();
+
   const mongoUri = process.env.MONGODB_URI;
   
   if (!mongoUri) {
