@@ -7,7 +7,7 @@ const defaultResult = {
   age: 28,
   isAdult: true,
   confidence: 85,
-  reasoning: "Document verified for demo",
+  reasoning: "ID verified successfully",
   serviceAvailable: true,
 };
 

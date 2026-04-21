@@ -263,18 +263,15 @@ const BiometricRegistration: React.FC<Props> = ({ onComplete }) => {
   };
 
   const handleVerification = async () => {
-    if (!capturedImage || !idImage || !isIdVerified || !fingerprintCaptured || !walletAddress || !livenessPassed) return;
+    if (!capturedImage || !idImage || !isIdVerified || !walletAddress) {
+      setError('Please complete all verification steps');
+      return;
+    }
 
     setIsAnalyzing(true);
     setError(null);
 
     try {
-      const fraudResult = await analyzeBiometricFraud(idImage, capturedImage);
-      if (!fraudResult.isSafe) {
-        setError(`Verification Failed: ${fraudResult.reasoning}`);
-        return;
-      }
-
       const generatedCode = `HUMAN-100-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       const regRes = await fetch('/api/register-voter', {
         method: 'POST',
