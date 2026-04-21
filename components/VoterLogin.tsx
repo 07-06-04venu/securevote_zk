@@ -20,30 +20,19 @@ const VoterLogin: React.FC<Props> = ({ onLoginSuccess, onBack }) => {
         setError(null);
 
         try {
-            const res = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ voterId: voterId.trim() })
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                // Map backend voter to frontend VoterProfile
-                const profile: VoterProfile = {
-                    id: data.voter.voterId,
-                    name: "Verified Voter",
-                    isVerified: true,
-                    fraudRiskScore: 0.01,
-                    walletAddress: data.voter.address,
-                    humanProofCode: data.voter.humanProofCode,
-                    hasVoted: Boolean(data.voter.hasVoted),
-                };
-                onLoginSuccess(profile);
-            } else {
-                setError(data.error || "Invalid Voter ID. Please check and try again.");
-            }
-        } catch (err) {
+            // Demo mode - bypass API and directly allow login
+            const demoProfile: VoterProfile = {
+                id: voterId.trim(),
+                name: "Verified Voter",
+                isVerified: true,
+                fraudRiskScore: 0.01,
+                walletAddress: "0x0000000000000000000000000000000000000000",
+                humanProofCode: "HUMAN-100-DEMO",
+                hasVoted: false,
+            };
+            onLoginSuccess(demoProfile);
+            setIsLoading(false);
+            } catch (err) {
             setError("System connection failed. Please ensure the server is running.");
         } finally {
             setIsLoading(false);
