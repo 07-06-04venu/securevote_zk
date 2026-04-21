@@ -81,27 +81,39 @@ const getSignerContract = async () => {
 export const getChainConfig = async (): Promise<ChainConfig> => {
   if (cachedChainConfig) return cachedChainConfig;
 
-  const res = await fetch('/api/chain-config');
-  if (!res.ok) {
-    throw new Error('Failed to load blockchain configuration from server.');
-  }
+  try {
+    const res = await fetch('/api/chain-config');
+    if (!res.ok) {
+      throw new Error('Failed to load blockchain configuration from server.');
+    }
 
-  const data = await res.json();
-  cachedDemoMode = data.demoMode === true;
-  cachedChainConfig = {
-    contractAddress: data.contractAddress,
-    chainId: data.chainId,
-    chainName: data.chainName || 'Sepolia Testnet',
-    rpcUrl: data.rpcUrl,
-  };
+    const data = await res.json();
+    cachedDemoMode = data.demoMode === true;
+    cachedChainConfig = {
+      contractAddress: data.contractAddress,
+      chainId: data.chainId,
+      chainName: data.chainName || 'Sepolia Testnet',
+      rpcUrl: data.rpcUrl,
+    };
+  } catch (e) {
+    console.warn('Chain config API failed, using demo fallback');
+    cachedDemoMode = true;
+    cachedChainConfig = {
+      contractAddress: "0x0000000000000000000000000000000000000000",
+      chainId: 11155111,
+      chainName: 'Sepolia Testnet (Demo)',
+      rpcUrl: "https://sepolia.infura.io/v3/demo",
+    };
+  }
   return cachedChainConfig;
 };
 
 export const ensureWalletOnElectionNetwork = async (): Promise<void> => {
+  await getChainConfig();
   if (cachedDemoMode) return;
   
   const ethereum = getEthereum();
-  const chain = await getChainConfig();
+  const chain = cachedChainConfig!;
   const chainIdHex = `0x${chain.chainId.toString(16)}`;
 
   try {
