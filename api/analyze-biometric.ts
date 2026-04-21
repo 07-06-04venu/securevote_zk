@@ -17,6 +17,6 @@ export default async function handler(req: any, res: any) {
   return res.status(200).json({
     score: 10,
     isSafe: true,
-    reasoning: "Biometric verified successfully",
+    reasoning: "Biometric verification completed",
   });
 }
