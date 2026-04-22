@@ -44,7 +44,7 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
           votes: c.voteCount + (savedVotes[c.id] || 0),
         }));
         setTally(updatedTally);
-        setTotalVotes(tallyData.reduce((acc: number, c: any) => acc + (c.voteCount || 0), 0) + getTotalSavedVotes()));
+        setTotalVotes(tallyData.reduce((acc: number, c: any) => acc + (c.voteCount || 0), 0) + getTotalSavedVotes());
       }
 
       const blockRes = await fetch('/api/blockchain');
