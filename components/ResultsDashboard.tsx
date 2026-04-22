@@ -21,49 +21,28 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
     return saved ? JSON.parse(saved) : {};
   };
 
-  const saveVote = (candidateId: string) => {
-    const votes = getSavedVotes();
-    votes[candidateId] = (votes[candidateId] || 0) + 1;
-    localStorage.setItem('securevote_votes', JSON.stringify(votes));
-  };
-
   const getTotalSavedVotes = () => {
     const votes = getSavedVotes();
-    return Object.values(votes).reduce((acc: number, v: any) => acc + v, 0) as number;
+    return Object.values(votes).reduce((acc: number, v: any) => acc + (Number(v) || 0), 0);
   };
 
-  const refreshData = async () => {
-    try {
-      const tallyRes = await fetch('/api/tally');
-      if (tallyRes.ok) {
-        const tallyData = await tallyRes.json();
-        // Add localStorage votes to the tally
-        const savedVotes = getSavedVotes();
-        const updatedTally = tallyData.map((c: any) => ({
-          name: c.name,
-          votes: c.voteCount + (savedVotes[c.id] || 0),
-        }));
-        setTally(updatedTally);
-        setTotalVotes(tallyData.reduce((acc: number, c: any) => acc + (c.voteCount || 0), 0) + getTotalSavedVotes());
-      }
-
-      const blockRes = await fetch('/api/blockchain');
-      if (blockRes.ok) {
-        const chain = await blockRes.json();
-        setBlocks([...chain].reverse());
-      }
-
-      setLastUpdate(new Date());
-    } catch (e) {
-      console.error(e);
-    }
+  const refreshData = () => {
+    // Use candidates prop + localStorage votes
+    const savedVotes = getSavedVotes();
+    const updatedTally = candidates.map((c: any) => ({
+      name: c.name,
+      votes: (c.voteCount || 0) + (savedVotes[c.id] || 0),
+    }));
+    setTally(updatedTally);
+    setTotalVotes(updatedTally.reduce((acc, curr) => acc + curr.votes, 0));
+    setLastUpdate(new Date());
   };
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 3000);
+    const interval = setInterval(refreshData, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [candidates]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
