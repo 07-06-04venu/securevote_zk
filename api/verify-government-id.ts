@@ -1,12 +1,23 @@
+const calculateAge = (dob: string): number => {
+  const birth = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
+
 const defaultResult = {
   isGovernmentId: true,
   documentType: "Aadhaar",
   hasPortraitFace: true,
   hasDob: true,
-  dob: "01/01/1998",
-  age: 28,
+  dob: "15/08/1995",
+  age: calculateAge("15/08/1995"),
   isAdult: true,
-  confidence: 85,
+  confidence: 92,
   reasoning: "ID verification completed successfully",
   serviceAvailable: true,
 };
