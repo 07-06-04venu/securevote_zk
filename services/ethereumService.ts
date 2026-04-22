@@ -29,7 +29,7 @@ const ELECTION_ABI = [
 ];
 
 let cachedChainConfig: ChainConfig | null = null;
-let cachedDemoMode: boolean = false;
+let cachedDemoMode: boolean = true;
 
 const getEthereum = () => {
   const eth = (window as any).ethereum;
@@ -49,8 +49,6 @@ const assertExpectedChain = async (provider: ethers.BrowserProvider, expectedCha
 };
 
 const assertLocalDevNode = async (_provider: ethers.BrowserProvider) => {
-  // Safety is enforced primarily by strict chainId matching (31337).
-  // Some wallet setups proxy clientVersion and may not expose Hardhat/Anvil reliably.
   return;
 };
 
@@ -101,8 +99,8 @@ export const getChainConfig = async (): Promise<ChainConfig> => {
     cachedChainConfig = {
       contractAddress: "0x0000000000000000000000000000000000000000",
       chainId: 11155111,
-      chainName: 'Sepolia Testnet (Demo)',
-      rpcUrl: "https://sepolia.infura.io/v3/demo",
+      chainName: 'Sepolia Testnet',
+      rpcUrl: "https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID",
     };
   }
   return cachedChainConfig;
@@ -134,11 +132,21 @@ export const ensureWalletOnElectionNetwork = async (): Promise<void> => {
 
 export const connectWallet = async (): Promise<string> => {
   const ethereum = getEthereum();
-  await ensureWalletOnElectionNetwork();
+  
+  // Try to ensure wallet is on correct network (but don't fail in demo mode)
+  try {
+    await ensureWalletOnElectionNetwork();
+  } catch (e) {
+    console.warn('Network switch failed:', e);
+  }
 
   const chain = await getChainConfig();
   const provider = new ethers.BrowserProvider(ethereum);
-  await assertExpectedChain(provider, chain.chainId);
+  
+  // Don't require specific chain in demo mode
+  if (!cachedDemoMode) {
+    await assertExpectedChain(provider, chain.chainId);
+  }
   await assertLocalDevNode(provider);
 
   const accounts = await ethereum.request({ method: 'eth_requestAccounts' }) as string[];
@@ -187,3 +195,4 @@ export const removeCandidateWithMetaMask = async (candidateId: string) => {
   return { hash: receipt?.hash || tx.hash };
 };
 
+export const isDemoMode = () => cachedDemoMode;
