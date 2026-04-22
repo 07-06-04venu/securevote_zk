@@ -7,7 +7,7 @@ const defaultResult = {
   age: 28,
   isAdult: true,
   confidence: 85,
-  reasoning: "ID verified successfully",
+  reasoning: "ID verification completed successfully",
   serviceAvailable: true,
 };
 

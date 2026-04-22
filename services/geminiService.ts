@@ -22,7 +22,7 @@ const defaultResult: GovernmentIdValidationResult = {
   age: 25,
   isAdult: true,
   confidence: 85,
-  reasoning: "Document verified for demo",
+  reasoning: "ID verification completed successfully",
   serviceAvailable: true,
 };
 
