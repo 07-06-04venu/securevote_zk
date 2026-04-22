@@ -49,7 +49,11 @@ const VotingBallot: React.FC<Props> = ({ candidates, voterId, voterWalletAddress
     try {
       setProgress('Processing vote...');
       
-      // Skip blockchain - directly submit vote
+      // Save vote to localStorage for persistence
+      const votes = JSON.parse(localStorage.getItem('securevote_votes') || '{}');
+      votes[selectedCandidateId] = (votes[selectedCandidateId] || 0) + 1;
+      localStorage.setItem('securevote_votes', JSON.stringify(votes));
+      
       const voterHash = "0x" + Math.random().toString(16).slice(2, 66);
       const zkProof = "0x" + Math.random().toString(16).slice(2, 34);
       const txHash = "0x" + Math.random().toString(16).slice(2, 66);

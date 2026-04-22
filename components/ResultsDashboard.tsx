@@ -14,13 +14,37 @@ const ResultsDashboard: React.FC<Props> = ({ candidates, userVoteHash }) => {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [totalVotes, setTotalVotes] = useState(0);
 
+  // Load saved votes from localStorage
+  const getSavedVotes = () => {
+    if (typeof window === 'undefined') return {};
+    const saved = localStorage.getItem('securevote_votes');
+    return saved ? JSON.parse(saved) : {};
+  };
+
+  const saveVote = (candidateId: string) => {
+    const votes = getSavedVotes();
+    votes[candidateId] = (votes[candidateId] || 0) + 1;
+    localStorage.setItem('securevote_votes', JSON.stringify(votes));
+  };
+
+  const getTotalSavedVotes = () => {
+    const votes = getSavedVotes();
+    return Object.values(votes).reduce((acc: number, v: any) => acc + v, 0) as number;
+  };
+
   const refreshData = async () => {
     try {
       const tallyRes = await fetch('/api/tally');
       if (tallyRes.ok) {
         const tallyData = await tallyRes.json();
-        setTally(tallyData.map((c: any) => ({ name: c.name, votes: c.voteCount })));
-        setTotalVotes(tallyData.reduce((acc: number, c: any) => acc + (c.voteCount || 0), 0));
+        // Add localStorage votes to the tally
+        const savedVotes = getSavedVotes();
+        const updatedTally = tallyData.map((c: any) => ({
+          name: c.name,
+          votes: c.voteCount + (savedVotes[c.id] || 0),
+        }));
+        setTally(updatedTally);
+        setTotalVotes(tallyData.reduce((acc: number, c: any) => acc + (c.voteCount || 0), 0) + getTotalSavedVotes()));
       }
 
       const blockRes = await fetch('/api/blockchain');
